@@ -111,9 +111,9 @@ tests s = testGroup "Gundeck integration tests" [
         [ test s "(un)register a client" $ testRegisterClient
         ],
     testGroup "Tokens"
-        [ test s "register a push token"     $ testRegisterPushToken
+        [ test s "kokot register a push token"     $ testRegisterPushToken
         , test s "unregister a push token"   $ testUnregisterPushToken
-        , test s "register too many push tokens" $ testRegisterTooManyTokens
+        , test s "kokot register too many push tokens" $ testRegisterTooManyTokens
         , test s "share push token"          $ testSharePushToken
         , test s "replace shared push token" $ testReplaceSharedPushToken
         , test s "fail on long push token"   $ testLongPushToken
@@ -612,35 +612,50 @@ testRegisterPushToken g _ b _ = do
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
--- TODO: Try to make this test more performant, this test takes too long right now
 testRegisterTooManyTokens :: TestSignature ()
-testRegisterTooManyTokens g _ b _ = do
+testRegisterTooManyTokens g _ _ _ = do
     -- create tokens for reuse with multiple users
-    apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
-    gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
-    
+    gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId    
     -- create 55 users with these tokens, which should succeed
-    userClients <- replicateM 55 $ registerToken 201 apsTok gcmTok
-
+    replicateM_ 55 $ registerToken 201 gcmTok
     -- should run out of space in endpoint metadata and fail with a 413 on number 56
-    _           <- registerToken 413 apsTok gcmTok
-
-    -- clean up by deleting clients and their tokens
-    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
-    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
-    tokens <- forM (map fst userClients) (\uid -> listPushTokens uid g)
-    liftIO $ assertEqual "unexpected tokens" [] (concat tokens)
+    registerToken 413 gcmTok
   where
-    registerToken status apsTok gcmTok = do
-        let tka = pushToken APNS "com.wire.int.ent" apsTok
-        let tkg = pushToken GCM "test" gcmTok
-        uid <- randomUser b
-        c   <- randomClient g uid
-        let ta = tka c
-        let tg = tkg c
-        registerPushTokenRequest uid ta g !!! const status === statusCode
-        registerPushTokenRequest uid tg g !!! const status === statusCode
-        return (uid, c)
+    registerToken status gcmTok = do
+        uid <- randomId
+        con <- randomClientId
+        let tkg = pushToken GCM "test" gcmTok con
+        registerPushTokenRequest uid tkg g !!! const status === statusCode
+
+-- TODO: Try to make this test more performant, this test takes too long right now
+-- testRegisterManyTokens :: TestSignature ()
+-- testRegisterManyTokens g _ b _ = do
+--     -- create tokens for reuse with multiple users
+--     apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
+--     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
+    
+--     -- create 55 users with these tokens, which should succeed
+--     userClients <- replicateM 55 $ registerToken 201 apsTok gcmTok
+
+--     -- should run out of space in endpoint metadata and fail with a 413 on number 56
+--     _           <- registerToken 413 apsTok gcmTok
+
+--     -- clean up by deleting clients and their tokens
+--     forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
+--     forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
+--     tokens <- forM (map fst userClients) (\uid -> listPushTokens uid g)
+--     liftIO $ assertEqual "unexpected tokens" [] (concat tokens)
+--   where
+--     registerToken status apsTok gcmTok = do
+--         let tka = pushToken APNS "com.wire.int.ent" apsTok
+--         let tkg = pushToken GCM "test" gcmTok
+--         uid <- randomUser b
+--         c   <- randomClient g uid
+--         let ta = tka c
+--         let tg = tkg c
+--         registerPushTokenRequest uid ta g !!! const status === statusCode
+--         registerPushTokenRequest uid tg g !!! const status === statusCode
+--         return (uid, c)
 
 testUnregisterPushToken :: TestSignature ()
 testUnregisterPushToken g _ b _ = do
