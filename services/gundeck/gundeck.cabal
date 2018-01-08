@@ -232,6 +232,7 @@ executable gundeck-integration
       , brig-types
       , cassandra-util
       , containers
+      , extra
       , gundeck
       , gundeck-types
       , http-client
@@ -240,6 +241,7 @@ executable gundeck-integration
       , HUnit
       , lens
       , lens-aeson
+      , lifted-async
       , mtl
       , network
       , network-uri
